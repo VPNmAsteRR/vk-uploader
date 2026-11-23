@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vkup — загрузка видео в VK</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">▶</span>
+    <div>
+      <h1>vkup</h1>
+      <p class="sub">Загрузка видео в VK — через браузер, без токенов и API</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span id="modeBadge" class="badge badge-demo">ДЕМО</span>
+    <span id="loginBadge" class="badge badge-muted">вход не проверен</span>
+    <button id="btnOpenBrowser" class="btn btn-ghost">Открыть браузер</button>
+    <button id="btnSettings" class="btn btn-ghost">Настройки</button>
+  </div>
+</header>
+
+<main class="layout">
+  <div id="loginBanner" class="banner hidden">
+    <span>🔐 <b>Нужен вход в VK.</b> Нажми «Открыть браузер», войди один раз руками —
+      сессия сохранится в профиле, и очередь продолжит работу без пароля.</span>
+    <button id="btnBannerOpen" class="btn">Открыть браузер</button>
+    <button id="btnBannerCheck" class="btn">Проверить вход</button>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Добавить видео</h2>
+      <span id="engineState" class="pill pill-muted">очередь остановлена</span>
+    </div>
+
+    <div class="row">
+      <input id="pathInput" class="input grow" placeholder="Путь к файлу, например ~/Videos/clip.mp4" autocomplete="off">
+      <button id="btnBrowse" class="btn btn-ghost">Обзор…</button>
+      <button id="btnProbe" class="btn btn-ghost">Проверить</button>
+    </div>
+    <p id="probeOut" class="hint"></p>
+
+    <div class="row">
+      <input id="titleInput" class="input grow" placeholder="Название ролика (по умолчанию — имя файла)" maxlength="128">
+    </div>
+    <div class="row">
+      <textarea id="descInput" class="input grow" rows="2" placeholder="Описание (необязательно)" maxlength="5000"></textarea>
+    </div>
+
+    <div class="row">
+      <label class="field field-inline"><input type="checkbox" id="wallpostInput"> Запись на стене</label>
+      <label class="field field-inline"><input type="checkbox" id="privateInput"> Приватное</label>
+      <label class="field field-inline"><input type="checkbox" id="noCommentsInput"> Без комментариев</label>
+      <label class="field field-inline"><input type="checkbox" id="keepTitleInput" checked> Не менять название при пакете</label>
+    </div>
+
+    <div class="row">
+      <button id="btnAdd" class="btn btn-primary">В очередь</button>
+      <button id="btnAddPick" class="btn btn-ghost">Добавить несколько…</button>
+      <span id="composerMsg" class="hint"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Очередь</h2>
+      <div class="row tight">
+        <button id="btnStart" class="btn btn-primary">Старт</button>
+        <button id="btnStop" class="btn btn-ghost">Стоп</button>
+        <button id="btnClearDone" class="btn btn-ghost" title="Удалить завершённые и отменённые">Очистить готовые</button>
+        <a class="btn btn-ghost" href="/api/export" download>Экспорт JSON</a>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="c-id">#</th>
+            <th>Файл</th>
+            <th class="c-status">Статус</th>
+            <th class="c-progress">Прогресс</th>
+            <th class="c-size">Размер</th>
+            <th class="c-act">Действия</th>
+          </tr>
+        </thead>
+        <tbody id="jobsBody">
+          <tr><td colspan="6" class="empty">Пока пусто. Добавь видео выше.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Журнал</h2>
+      <div class="row tight">
+        <button id="btnScreenshot" class="btn btn-ghost" title="Снимок текущего окна браузера">Скриншот</button>
+        <button id="btnClearLogs" class="btn btn-ghost">Очистить</button>
+      </div>
+    </div>
+    <div id="logBox" class="log"></div>
+  </section>
+</main>
+
+<!-- Настройки -->
+<div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <div class="card-head">
+      <h2>Настройки</h2>
+      <button class="btn btn-ghost" data-close="settingsModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="field">
+        <span>Режим работы</span>
+        <select id="cfgBackend" class="input">
+          <option value="demo">Демо — локальная страница, безопасно для тестов</option>
+          <option value="browser">Боевой — реальный VK через браузер</option>
+        </select>
+      </label>
+      <p class="hint">В демо-режиме ничего не уходит в сеть: загрузка идёт на локальную
+        страницу-заглушку, но весь цикл (файл, метаданные, прогресс, повторы) — настоящий.</p>
+
+      <div class="grid2">
+        <label class="field">
+          <span>Chromium / Chrome</span>
+          <input id="cfgBinary" class="input" placeholder="/usr/bin/chromium">
+        </label>
+        <label class="field">
+          <span>chromedriver</span>
+          <input id="cfgDriver" class="input" placeholder="chromedriver или полный путь">
+        </label>
+        <label class="field">
+          <span>Профиль браузера <small>(здесь живёт вход в VK)</small></span>
+          <input id="cfgProfile" class="input" placeholder="~/vkup-profile">
+        </label>
+        <label class="field">
+          <span>Страница загрузки</span>
+          <input id="cfgUploadUrl" class="input" placeholder="https://vk.com/video?act=upload">
+        </label>
+        <label class="field">
+          <span>Стартовая страница для входа</span>
+          <input id="cfgVkHome" class="input" placeholder="https://vk.com/feed">
+        </label>
+        <label class="field">
+          <span>Таймаут загрузки страницы, с</span>
+          <input id="cfgTimeout" class="input" type="number" min="10" max="300" step="5">
+        </label>
+        <label class="field">
+          <span>Ожидание входа, с</span>
+          <input id="cfgLoginTimeout" class="input" type="number" min="30" max="1800" step="30">
+        </label>
+        <label class="field">
+          <span>Попыток на файл</span>
+          <input id="cfgAttempts" class="input" type="number" min="1" max="20" step="1">
+        </label>
+        <label class="field">
+          <span>Пауза перед повтором, с</span>
+          <input id="cfgDelay" class="input" type="number" min="1" max="600" step="1">
+        </label>
+        <label class="field">
+          <span>User-Agent <small>(пусто — по умолчанию)</small></span>
+          <input id="cfgUserAgent" class="input" placeholder="по умолчанию">
+        </label>
+      </div>
+
+      <div class="checks">
+        <label><input type="checkbox" id="cfgHeadless"> Без окна браузера (headless) — мешает входу в VK</label>
+        <label><input type="checkbox" id="cfgWallpost"> Публиковать запись на стене по умолчанию</label>
+        <label><input type="checkbox" id="cfgNoComments"> Отключать комментарии по умолчанию</label>
+        <label><input type="checkbox" id="cfgSkipDup"> Пропускать одинаковые файлы</label>
+        <label><input type="checkbox" id="cfgDeleteAfter"> Удалять файл после успешной загрузки</label>
+        <label><input type="checkbox" id="cfgKeepOpen"> Не закрывать браузер после остановки очереди</label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span id="settingsMsg" class="hint"></span>
+      <button class="btn btn-ghost" data-close="settingsModal">Отмена</button>
+      <button id="btnSaveSettings" class="btn btn-primary">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Селекторы -->
+<div id="selectorsModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-card wide">
+    <div class="card-head">
+      <h2>Селекторы страницы</h2>
+      <button class="btn btn-ghost" data-close="selectorsModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="hint">Если VK поменяет вёрстку — поправь здесь. По одному селектору в строке:
+        CSS или XPath (начиная с <code>//</code>). Твои строки пробуются первыми.</p>
+      <div id="selGrid" class="selgrid"></div>
+    </div>
+    <div class="modal-foot">
+      <span id="selMsg" class="hint"></span>
+      <button class="btn btn-ghost" data-close="selectorsModal">Отмена</button>
+      <button id="btnSaveSelectors" class="btn btn-primary">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Выбор файлов -->
+<div id="browseModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-card wide">
+    <div class="card-head">
+      <h2>Выбор файлов</h2>
+      <button class="btn btn-ghost" data-close="browseModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="row">
+        <button id="btnUp" class="btn btn-ghost">↑ Вверх</button>
+        <input id="browsePath" class="input grow" placeholder="путь к папке">
+        <button id="btnGo" class="btn btn-ghost">Перейти</button>
+      </div>
+      <div id="browseList" class="filelist"></div>
+      <p class="hint">Отметь файлы галочками. Папки — двойной клик.</p>
+    </div>
+    <div class="modal-foot">
+      <span id="browseMsg" class="hint"></span>
+      <button class="btn btn-ghost" data-close="browseModal">Отмена</button>
+      <button id="btnBrowsePick" class="btn btn-primary">Выбрать</button>
+    </div>
+  </div>
+</div>
+
+<!-- Диагностика -->
+<div id="diagModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-card wide">
+    <div class="card-head">
+      <h2>Диагностика страницы</h2>
+      <button class="btn btn-ghost" data-close="diagModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="row">
+        <button id="btnCalibrate" class="btn">Проверить селекторы</button>
+        <button id="btnDump" class="btn">Показать элементы страницы</button>
+        <span id="diagMsg" class="hint"></span>
+      </div>
+      <div id="diagOut" class="diag-out"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close="diagModal">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# рабочие данные: конфиг, БД, профиль браузера, скриншоты
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# сборка exe
+build/
+# dist/ кладём в репозиторий, чтобы другу было что скачать
+*.spec.bak
+
+# редакторы / ОС
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# рабочие данные рядом с exe
+dist/data/

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Демо-загрузка видео</title>
+<style>
+  body{font:15px/1.5 system-ui,sans-serif;background:#111827;color:#e5e7eb;margin:0;padding:40px 20px}
+  .wrap{max-width:620px;margin:0 auto;background:#1b2434;border:1px solid #2b3648;border-radius:14px;padding:26px}
+  h1{font-size:19px;margin:0 0 4px}
+  .sub{color:#8b9cb3;font-size:13px;margin:0 0 22px}
+  label{display:block;margin-bottom:14px}
+  label>span{display:block;font-size:12px;color:#93a4bd;margin-bottom:6px}
+  input[type=text],textarea{width:100%;box-sizing:border-box;background:#0f1622;border:1px solid #2b3648;
+    color:#e5e7eb;border-radius:9px;padding:10px 12px;font:inherit}
+  input[type=file]{width:100%;box-sizing:border-box;background:#0f1622;border:1px dashed #3b4a63;
+    color:#c7d2e0;border-radius:9px;padding:10px 12px}
+  textarea{resize:vertical;min-height:64px}
+  .row{display:flex;gap:18px;margin:16px 0;flex-wrap:wrap}
+  .row label{display:flex;align-items:center;gap:8px;margin:0;color:#c7d2e0;font-size:13px}
+  button{background:linear-gradient(180deg,#4f8cff,#2f6fe0);border:1px solid #3a72d8;color:#fff;
+    border-radius:9px;padding:11px 20px;font:inherit;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .bar{height:10px;background:#0d131d;border:1px solid #2b3648;border-radius:999px;overflow:hidden;margin-top:18px}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4f8cff,#8b5cf6);transition:width .2s}
+  #upload_progress{margin-top:8px;font-size:13px;color:#93a4bd;display:none}
+  .ok{margin-top:16px;padding:12px 14px;border-radius:9px;background:#0f2b21;border:1px solid #2b6b53;color:#5ee0a4;display:none}
+  .err{margin-top:16px;padding:12px 14px;border-radius:9px;background:#2b1313;border:1px solid #6b2b2b;color:#ff9b9b;display:none}
+  .note{margin-top:22px;font-size:12px;color:#6f7f96}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Загрузка видео</h1>
+  <p class="sub">Локальная демо-страница: имитирует VK, ничего не отправляет в сеть</p>
+
+  <form id="form" onsubmit="return false">
+    <label>
+      <span>Видеофайл</span>
+      <input type="file" id="video_file_input" accept="video/*">
+    </label>
+    <label>
+      <span>Название</span>
+      <input type="text" id="video_title" name="title" maxlength="128" placeholder="Название ролика">
+    </label>
+    <label>
+      <span>Описание</span>
+      <textarea id="video_description" name="description" maxlength="5000" placeholder="Описание"></textarea>
+    </label>
+
+    <div class="row">
+      <label><input type="checkbox" id="wallpost"> Запись на стене</label>
+      <label><input type="checkbox" id="no_comments"> Без комментариев</label>
+      <label><input type="checkbox" id="is_private"> Приватное</label>
+    </div>
+
+    <button id="publish" type="button">Опубликовать</button>
+
+    <div class="bar" id="bar" style="display:none"><i></i></div>
+    <div id="upload_progress"></div>
+    <div class="ok" id="upload_success"></div>
+    <div class="err" id="upload_error"></div>
+  </form>
+
+  <p class="note">Подсказка: если в имени файла есть «fail», демо смоделирует ошибку загрузки —
+    удобно проверять повторы и логи.</p>
+</div>
+
+<script>
+(function () {
+  const file = document.getElementById('video_file_input');
+  const btn = document.getElementById('publish');
+  const bar = document.getElementById('bar');
+  const fill = bar.querySelector('i');
+  const prog = document.getElementById('upload_progress');
+  const ok = document.getElementById('upload_success');
+  const err = document.getElementById('upload_error');
+  let busy = false;
+
+  file.addEventListener('change', () => {
+    ok.style.display = 'none';
+    err.style.display = 'none';
+    prog.style.display = 'none';
+    bar.style.display = 'none';
+    fill.style.width = '0%';
+    if (file.files[0] && !document.getElementById('video_title').value) {
+      document.getElementById('video_title').value =
+        file.files[0].name.replace(/\.[^.]+$/, '');
+    }
+  });
+
+  btn.addEventListener('click', () => {
+    if (busy) return;
+    if (!file.files.length) {
+      err.textContent = 'Не выбран файл';
+      err.style.display = 'block';
+      return;
+    }
+    const f = file.files[0];
+    const mustFail = /fail/i.test(f.name);
+    // имитируем скорость ~ 2.5 МБ/с, но не дольше 8 и не меньше 1.2 секунды
+    const bytesPerSec = 2.5 * 1024 * 1024;
+    const dur = Math.min(8, Math.max(1.2, f.size / bytesPerSec)) * 1000;
+
+    busy = true;
+    btn.disabled = true;
+    ok.style.display = 'none';
+    err.style.display = 'none';
+    bar.style.display = 'block';
+    prog.style.display = 'block';
+
+    const started = performance.now();
+    const failAt = mustFail ? 35 + Math.random() * 25 : Infinity;
+
+    const timer = setInterval(() => {
+      const t = (performance.now() - started) / dur;
+      let pct = Math.min(100, t * 100);
+      if (pct >= failAt) {
+        clearInterval(timer);
+        prog.textContent = '';
+        bar.style.display = 'none';
+        err.textContent = 'Не удалось загрузить видео: сервер отклонил файл (демо)';
+        err.style.display = 'block';
+        busy = false;
+        btn.disabled = false;
+        return;
+      }
+      fill.style.width = pct.toFixed(1) + '%';
+      prog.textContent = 'Загрузка ' + Math.floor(pct) + '%';
+      if (pct >= 100) {
+        clearInterval(timer);
+        prog.textContent = '';
+        bar.style.display = 'none';
+        ok.textContent = 'Видео опубликовано: «' +
+          (document.getElementById('video_title').value || f.name) + '»';
+        ok.style.display = 'block';
+        busy = false;
+        btn.disabled = false;
+        window.__uploaded = {
+          name: f.name, size: f.size,
+          title: document.getElementById('video_title').value,
+          description: document.getElementById('video_description').value,
+          wallpost: document.getElementById('wallpost').checked,
+          no_comments: document.getElementById('no_comments').checked,
+          at: Date.now()
+        };
+      }
+    }, 100);
+  });
+})();
+</script>
+</body>
+</html>
